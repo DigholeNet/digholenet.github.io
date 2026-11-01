@@ -1,0 +1,62 @@
+name: Deploy Vault website
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+  schedule:
+    - cron: '23 2 * * *'
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+
+    steps:
+      - name: Pull website source from vault
+        uses: actions/checkout@v6
+        with:
+          repository: DigholeNet/vault
+          ref: main
+          path: vault-source
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@v6
+        with:
+          python-version: '3.13'
+
+      - name: Check release-link selection
+        run: python -B vault-source/scripts/test-site-release.py
+
+      - name: Install QR generator
+        run: python -m pip install qrcode==8.2
+
+      - name: Update release links and Android QR
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: python vault-source/scripts/update-site-release.py
+
+      - name: Configure Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload website
+        uses: actions/upload-pages-artifact@v4
+        with:
+          path: vault-source/website
+
+      - name: Deploy
+        id: deployment
+        uses: actions/deploy-pages@v4
